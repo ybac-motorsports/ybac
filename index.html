@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YBAC Repair Estimator</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b5ed7">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#fff; --ink:#14202e; --muted:#5d6b7a; --line:#dde3ea;
+    --brand:#0b5ed7; --brand-ink:#fff; --low:#1a8f5a; --high:#c2412d; --ybac:#0b5ed7;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f141a; --card:#18202a; --ink:#e8edf3; --muted:#9aa8b6; --line:#2a3441;
+      --brand:#4d8ef7; --low:#3cc486; --high:#f07a63; --ybac:#6ea4ff; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.4}
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+  header h1{font-size:1.6rem;margin:4px 0}
+  header p{color:var(--muted);margin:0 0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .step{display:flex;align-items:center;gap:10px;font-weight:700;margin:0 0 12px}
+  .num{width:26px;height:26px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;font-size:.85rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .full{grid-column:1/-1}
+  label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:4px;font-weight:600}
+  input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:1rem;background:var(--bg);color:var(--ink)}
+  input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
+  button{width:100%;padding:14px;border:0;border-radius:12px;background:var(--brand);color:var(--brand-ink);font-size:1.05rem;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{border:1px solid var(--line);background:transparent;color:var(--ink);padding:6px 10px;border-radius:999px;font-size:.8rem;width:auto;font-weight:500}
+  .err{color:var(--high);font-size:.9rem;margin-top:8px;min-height:1em}
+  #result{display:none}
+  .veh{color:var(--muted);font-size:.9rem;margin:0 0 14px}
+  .prices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .box{border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .box .k{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  .box .v{font-size:1.6rem;font-weight:800;margin-top:2px}
+  .low .v{color:var(--low)} .high .v{color:var(--high)}
+  .ybac{border:2px solid var(--ybac);border-radius:14px;padding:16px;text-align:center;background:color-mix(in srgb,var(--ybac) 8%,transparent)}
+  .ybac .k{font-weight:800;color:var(--ybac);letter-spacing:.06em}
+  .ybac .v{font-size:2.6rem;font-weight:900;color:var(--ybac)}
+  .ybac .f{font-size:.85rem;color:var(--muted)}
+  .bar{position:relative;height:10px;border-radius:6px;background:linear-gradient(90deg,var(--low),var(--high));margin:18px 6px 6px}
+  .pin{position:absolute;top:-6px;left:50%;width:22px;height:22px;margin-left:-11px;border-radius:50%;background:var(--card);border:4px solid var(--ybac)}
+  table{width:100%;border-collapse:collapse;font-size:.92rem;margin-top:14px}
+  td{padding:8px 4px;border-bottom:1px solid var(--line)} td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .note{font-size:.85rem;color:var(--muted);margin-top:12px}
+  .src{display:inline-block;font-size:.72rem;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--line);color:var(--muted);margin-bottom:10px}
+  .toggle{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;font-weight:600;cursor:pointer;color:var(--ink);font-size:.95rem}
+  .toggle input{width:22px;height:22px;accent-color:var(--brand);flex:none}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .sbox{border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .sbox .k{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800}
+  .sbox .r{font-size:1.05rem;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .sbox .m{font-size:.85rem;color:var(--ybac);font-weight:700;margin-top:4px}
+  .sbox .h{font-size:.75rem;color:var(--muted);margin-top:2px}
+  .sbox.off{opacity:.4;text-decoration:line-through}
+  .rate{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+  .rrow{display:flex;align-items:center;gap:8px;font-weight:700}
+  .rrow input{flex:1}
+  textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:.95rem;background:var(--bg);color:var(--ink);font-family:inherit;resize:vertical}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .btn{display:block;text-align:center;text-decoration:none;padding:14px;border-radius:12px;background:var(--brand);color:var(--brand-ink);font-weight:700}
+  .btn2{background:transparent;color:var(--brand);border:2px solid var(--brand)}
+  .k2{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;margin:0 0 6px}
+  .spin{display:inline-block;width:16px;height:16px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:8px}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🔧 YBAC Repair Estimator</h1>
+    <p>Get a fair price range for your repair in your area — plus your YBAC price.</p>
+  </header>
+
+  <form id="f" autocomplete="off">
+    <div class="card">
+      <div class="step"><span class="num">1</span> Your vehicle</div>
+      <div class="grid">
+        <div><label for="year">Year</label><select id="year" required></select></div>
+        <div><label for="make">Make</label><input id="make" list="makes" placeholder="e.g. Toyota" required></div>
+        <div><label for="model">Model</label><input id="model" placeholder="e.g. Camry" required></div>
+        <div><label for="zip">ZIP code</label><input id="zip" inputmode="numeric" pattern="\d{5}" maxlength="5" placeholder="e.g. 77546" required></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="step"><span class="num">2</span> Repair needed</div>
+      <label for="repair">Repair</label>
+      <input id="repair" list="repairs" placeholder="e.g. Front brake pads replacement" required>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <button id="go" type="submit">Get estimate</button>
+    <div class="err" id="err"></div>
+  </form>
+
+  <div class="card" id="result">
+    <div class="step"><span class="num">3</span> Estimated price in your area</div>
+    <span class="src" id="src"></span>
+    <p class="veh" id="veh"></p>
+    <label class="toggle"><input type="checkbox" id="own"> <span>Customer provides parts (labor only)</span></label>
+    <div class="rate">
+      <label for="rate">My labor rate ($/hr) — leave blank to use area rate</label>
+      <div class="rrow"><span>$</span><input id="rate" type="number" inputmode="decimal" min="0" step="1" placeholder="e.g. 95"><span>/hr</span></div>
+    </div>
+    <div class="split">
+      <div class="sbox" id="partsBox"><div class="k">Parts</div><div class="r" id="partsRange"></div><div class="m" id="partsMid"></div></div>
+      <div class="sbox"><div class="k">Labor</div><div class="r" id="laborRange"></div><div class="m" id="laborMid"></div><div class="h" id="laborHrs"></div></div>
+    </div>
+    <div class="k2" id="totalLabel">Total (parts + labor)</div>
+    <div class="prices">
+      <div class="box low"><div class="k">Low</div><div class="v" id="low"></div></div>
+      <div class="box high"><div class="k">High</div><div class="v" id="high"></div></div>
+    </div>
+    <div class="bar"><div class="pin"></div></div>
+
+    <div class="step" style="margin-top:22px"><span class="num">4</span> Your price</div>
+    <div class="ybac">
+      <div class="k">YBAC PRICE</div>
+      <div class="v" id="ybac"></div>
+      <div class="f" id="formula"></div>
+    </div>
+
+    <table id="breakdown"></table>
+    <p class="note" id="note"></p>
+  </div>
+
+  <div class="card" id="sendCard" style="display:none">
+    <div class="step"><span class="num">5</span> Send to customer</div>
+    <div class="grid">
+      <div><label for="cname">Customer name (optional)</label><input id="cname" placeholder="e.g. Mike"></div>
+      <div><label for="phone">Customer phone</label><input id="phone" type="tel" inputmode="tel" placeholder="(281) 555-1234"></div>
+      <div class="full"><label for="msg">Message (you can edit it)</label><textarea id="msg" rows="8"></textarea></div>
+    </div>
+    <div class="btns">
+      <a id="textBtn" class="btn" href="#">💬 Text estimate</a>
+      <button id="copyBtn" type="button" class="btn2">📋 Copy message</button>
+    </div>
+    <div class="err" id="sendErr"></div>
+    <p class="note" id="sendNote">"Text estimate" opens your messaging app with the message filled in. If it doesn't open, tap Copy and paste it into a text.</p>
+  </div>
+</div>
+
+<datalist id="makes"></datalist>
+<datalist id="repairs"></datalist>
+
+<script>
+const MAKES = ["Acura","Audi","BMW","Buick","Cadillac","Chevrolet","Chrysler","Dodge","Ford","GMC","Genesis","Honda","Hyundai","Infiniti","Jeep","Kia","Land Rover","Lexus","Lincoln","Mazda","Mercedes-Benz","Mini","Mitsubishi","Nissan","Porsche","Ram","Subaru","Tesla","Toyota","Volkswagen","Volvo"];
+const LUXURY = ["acura","audi","bmw","cadillac","genesis","infiniti","land rover","lexus","lincoln","mercedes-benz","porsche","volvo","tesla"];
+
+// Built-in fallback: national-average ranges [partsLow, partsHigh, laborHoursLow, laborHoursHigh]
+const REPAIRS = {
+  "Front brake pads replacement":[60,150,1.0,1.5],
+  "Rear brake pads replacement":[55,140,1.0,1.5],
+  "Front brake pads & rotors replacement":[150,350,1.5,2.5],
+  "Oil change (synthetic)":[45,80,0.3,0.5],
+  "Battery replacement":[150,280,0.3,0.6],
+  "Alternator replacement":[200,550,1.0,2.5],
+  "Starter replacement":[150,450,1.0,2.5],
+  "Spark plugs replacement":[40,120,1.0,2.5],
+  "Water pump replacement":[60,250,2.0,4.5],
+  "Thermostat replacement":[25,80,0.8,1.8],
+  "Radiator replacement":[150,450,1.5,3.0],
+  "Serpentine belt replacement":[25,70,0.4,1.0],
+  "Timing belt replacement":[100,350,3.0,6.0],
+  "AC recharge":[40,90,0.8,1.2],
+  "AC compressor replacement":[350,900,2.5,4.0],
+  "Wheel alignment":[0,0,1.0,1.3],
+  "Tire rotation":[0,0,0.3,0.5],
+  "Wheel bearing replacement":[80,300,1.0,2.5],
+  "Struts replacement (front pair)":[200,550,2.0,3.5],
+  "Transmission fluid service":[60,150,0.8,1.5],
+  "Coolant flush":[30,70,0.8,1.2],
+  "Catalytic converter replacement":[400,1800,1.0,2.5],
+  "Oxygen sensor replacement":[60,200,0.5,1.2],
+  "Fuel pump replacement":[200,650,2.0,4.0],
+  "Check engine light diagnostic":[0,0,1.0,1.5]
+};
+
+// Very rough regional labor rates by first ZIP digit ($/hr low, high)
+const LABOR = {"0":[130,190],"1":[130,195],"2":[110,165],"3":[95,145],"4":[100,150],"5":[95,145],"6":[100,155],"7":[100,150],"8":[115,170],"9":[135,205]};
+
+const $ = id => document.getElementById(id);
+const money = n => "$" + Math.round(n).toLocaleString();
+
+// fill selects / lists
+const yr = new Date().getFullYear() + 1;
+$("year").innerHTML = '<option value="">Select</option>' + Array.from({length:40},(_,i)=>`<option>${yr-i}</option>`).join("");
+$("makes").innerHTML = MAKES.map(m=>`<option value="${m}">`).join("");
+$("repairs").innerHTML = Object.keys(REPAIRS).map(r=>`<option value="${r}">`).join("");
+["Front brake pads replacement","Battery replacement","Alternator replacement","AC recharge","Oil change (synthetic)"].forEach(r=>{
+  const b=document.createElement("button"); b.type="button"; b.className="chip"; b.textContent=r;
+  b.onclick=()=>{ $("repair").value=r; }; $("chips").appendChild(b);
+});
+
+// remember last vehicle (convenience only)
+try{
+  const s = JSON.parse(localStorage.getItem("ybac-veh")||"null");
+  if(s){ $("year").value=s.year||""; $("make").value=s.make||""; $("model").value=s.model||""; $("zip").value=s.zip||""; }
+}catch(e){}
+
+// Claude-powered estimates when available
+let sample = null;
+(async()=>{ try{ if(window.claude) sample = await claude.use("sample"); }catch(e){ sample=null; } })();
+
+function builtInEstimate(v){
+  const key = Object.keys(REPAIRS).find(k=>k.toLowerCase()===v.repair.toLowerCase())
+           || Object.keys(REPAIRS).find(k=>k.toLowerCase().includes(v.repair.toLowerCase()) || v.repair.toLowerCase().includes(k.toLowerCase().split(" replacement")[0]));
+  if(!key) return null;
+  const [pL,pH,hL,hH] = REPAIRS[key];
+  const [rL,rH] = LABOR[v.zip[0]] || [100,160];
+  let mult = LUXURY.includes(v.make.trim().toLowerCase()) ? 1.35 : 1;
+  const age = new Date().getFullYear() - Number(v.year);
+  if(age > 15) mult *= 0.95;
+  const partsLow=pL*mult, partsHigh=pH*mult, laborLow=hL*rL, laborHigh=hH*rH;
+  return { repair:key, low:partsLow+laborLow, high:partsHigh+laborHigh,
+    partsLow, partsHigh, laborLow, laborHigh, laborHoursLow:hL, laborHoursHigh:hH,
+    note:"Built-in estimate from typical national parts prices and regional shop labor rates. Taxes and fees not included.",
+    source:"Built-in estimate" };
+}
+
+async function aiEstimate(v){
+  const prompt = `You are an auto repair cost estimator like RepairPal. Estimate the fair price range for this repair at independent shops and dealers near the given US ZIP code, using typical local shop labor rates for that area and typical parts prices for this exact vehicle.
+
+Vehicle: ${v.year} ${v.make} ${v.model}
+ZIP code: ${v.zip}
+Repair: ${v.repair}
+
+Reply with ONLY a JSON object, no other text:
+{"repair":"clean repair name","area":"city/region for the ZIP","low":number,"high":number,"partsLow":number,"partsHigh":number,"laborLow":number,"laborHigh":number,"laborHoursLow":number,"laborHoursHigh":number,"laborRate":"e.g. $110-$150/hr","note":"one short sentence of useful context (what's included, related repairs often needed)"}
+All money values are whole US dollars before tax. low = partsLow + laborLow, high = partsHigh + laborHigh. If the repair text is not a real car repair, return {"error":"short reason"}.`;
+  let out;
+  if(typeof sample.json === "function"){ out = await sample.json(prompt, {modelTier:"quick"}); }
+  else { const r = await sample(prompt, {modelTier:"quick"}); out = JSON.parse(r.text.match(/\{[\s\S]*\}/)[0]); }
+  if(out && out.error) throw {code:"bad_repair", message:out.error};
+  if(!out || !(out.low>0) || !(out.high>=out.low)) throw {code:"bad_output"};
+  out.source = "Live AI estimate";
+  return out;
+}
+
+let last = null;
+const mid = (a,b) => (a+b)/2;
+
+function render(){
+  if(!last) return;
+  const e = last.e, own = $("own").checked;
+  const myRate = Number($("rate").value);
+  const useMine = myRate > 0 && e.laborHoursHigh > 0;
+  const lL = useMine ? e.laborHoursLow * myRate : e.laborLow;
+  const lH = useMine ? e.laborHoursHigh * myRate : e.laborHigh;
+  const pL = own ? 0 : e.partsLow, pH = own ? 0 : e.partsHigh;
+  const low = pL + lL, high = pH + lH, ybac = mid(low, high);
+
+  $("partsBox").classList.toggle("off", own);
+  $("partsRange").textContent = `${money(e.partsLow)} – ${money(e.partsHigh)}`;
+  $("partsMid").textContent = `YBAC ${money(mid(e.partsLow, e.partsHigh))}`;
+  $("laborRange").textContent = `${money(lL)} – ${money(lH)}`;
+  $("laborMid").textContent = `YBAC ${money(mid(lL, lH))}`;
+  const rateTxt = useMine ? `your rate $${myRate}/hr` : (e.laborRate ? "area " + e.laborRate : "");
+  $("laborHrs").textContent = e.laborHoursLow ? `${e.laborHoursLow}–${e.laborHoursHigh} hrs${rateTxt ? " · " + rateTxt : ""}` : rateTxt;
+  if(myRate > 0 && !useMine) $("laborHrs").textContent = "Labor hours unavailable — using area rate";
+
+  $("totalLabel").textContent = own ? "Total (labor only — customer's parts)" : "Total (parts + labor)";
+  $("low").textContent = money(low);
+  $("high").textContent = money(high);
+  $("ybac").textContent = money(ybac);
+  $("formula").textContent = `(${money(low)} + ${money(high)}) ÷ 2 = ${money(ybac)}` + (own ? " · labor only" : "");
+  $("breakdown").innerHTML = "";
+  cur = { own, pL:e.partsLow, pH:e.partsHigh, lL, lH, low, high, ybac };
+  buildMsg();
+}
+
+let cur = null;
+function buildMsg(){
+  if(!last || !cur) return;
+  const v = last.v, e = last.e, name = $("cname").value.trim();
+  const lines = [
+    `Hi${name ? " " + name : ""}, here's your repair estimate:`,
+    ``,
+    `Vehicle: ${v.year} ${v.make} ${v.model}`,
+    `Repair: ${e.repair || v.repair}`,
+    ``
+  ];
+  if(cur.own){
+    lines.push(`Parts: customer supplied`);
+    lines.push(`Labor: ${money(cur.lL)} – ${money(cur.lH)}`);
+  } else {
+    lines.push(`Parts: ${money(cur.pL)} – ${money(cur.pH)}`);
+    lines.push(`Labor: ${money(cur.lL)} – ${money(cur.lH)}`);
+  }
+  lines.push(``, `YBAC price: ${money(cur.ybac)}${cur.own ? " (labor only)" : ""}`, ``,
+    `Price is before tax. Final price may change after inspection.`);
+  $("msg").value = lines.join("\n");
+  updateTextLink();
+}
+function digits(){ return $("phone").value.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, ""); }
+function updateTextLink(){
+  const d = digits();
+  $("textBtn").href = d.length === 10 ? `sms:+1${d}?&body=${encodeURIComponent($("msg").value)}` : "#";
+}
+$("cname").addEventListener("input", buildMsg);
+$("phone").addEventListener("input", updateTextLink);
+$("msg").addEventListener("input", updateTextLink);
+function fmtPhone(d){ return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`; }
+$("textBtn").addEventListener("click", ev=>{
+  $("sendErr").textContent = "";
+  const d = digits();
+  if(d.length !== 10){ ev.preventDefault(); $("sendErr").textContent = "Enter a 10-digit phone number."; return; }
+  // Always copy too, so the customer's estimate is ready to paste if the texting app doesn't open
+  try{ navigator.clipboard.writeText($("msg").value).catch(()=>{}); }catch(e){}
+  $("sendNote").innerHTML = `Message copied. If your texting app didn't open: open Messages, start a text to <b>${fmtPhone(d)}</b>, and paste.`;
+});
+$("copyBtn").addEventListener("click", async ()=>{
+  $("sendErr").textContent = "";
+  const d = digits();
+  try{ await navigator.clipboard.writeText($("msg").value); $("copyBtn").textContent = "✅ Copied"; }
+  catch(e){ $("msg").select(); $("copyBtn").textContent = "Select & copy above"; }
+  setTimeout(()=>{ $("copyBtn").textContent = "📋 Copy message"; }, 2500);
+  if(d.length === 10) $("sendNote").innerHTML = `Now open Messages, start a text to <b>${fmtPhone(d)}</b>, and paste.`;
+});
+
+function show(v, e){
+  // keep totals consistent with the parts + labor split
+  ["partsLow","partsHigh","laborLow","laborHigh","laborHoursLow","laborHoursHigh"].forEach(k=>{ e[k] = Number(e[k]) || 0; });
+  if(e.partsHigh + e.laborHigh > 0){ e.low = e.partsLow + e.laborLow; e.high = e.partsHigh + e.laborHigh; }
+  else { e.laborLow = e.low; e.laborHigh = e.high; }
+  last = {v, e};
+  $("src").textContent = e.source;
+  $("veh").textContent = `${v.year} ${v.make} ${v.model} · ${e.repair || v.repair} · ZIP ${v.zip}${e.area ? " ("+e.area+")" : ""}`;
+  $("note").textContent = (e.note ? e.note + " " : "") + "Estimates are a guide — actual shop quotes vary.";
+  render();
+  $("result").style.display = "block";
+  $("sendCard").style.display = "block";
+  $("result").scrollIntoView({behavior:"smooth", block:"start"});
+}
+$("own").addEventListener("change", render);
+try{ const r = localStorage.getItem("ybac-rate"); if(r) $("rate").value = r; }catch(e){}
+$("rate").addEventListener("input", ()=>{
+  try{ localStorage.setItem("ybac-rate", $("rate").value); }catch(e){}
+  render();
+});
+
+$("f").addEventListener("submit", async ev=>{
+  ev.preventDefault();
+  $("err").textContent = "";
+  const v = { year:$("year").value, make:$("make").value.trim(), model:$("model").value.trim(), zip:$("zip").value.trim(), repair:$("repair").value.trim() };
+  if(!/^\d{5}$/.test(v.zip)){ $("err").textContent = "Enter a 5-digit ZIP code."; return; }
+  try{ localStorage.setItem("ybac-veh", JSON.stringify({year:v.year,make:v.make,model:v.model,zip:v.zip})); }catch(e){}
+
+  const btn = $("go"); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Estimating…';
+  let est = null;
+  try{
+    if(sample) est = await aiEstimate(v);
+  }catch(e){
+    if(e && e.code==="bad_repair"){ $("err").textContent = e.message; btn.disabled=false; btn.textContent="Get estimate"; return; }
+    if(e && e.code==="not_granted") sample = null;
+    est = null;
+  }
+  if(!est) est = builtInEstimate(v);
+  btn.disabled = false; btn.textContent = "Get estimate";
+  if(!est){ $("err").textContent = "That repair isn't in the built-in list. Pick one from the suggestions."; return; }
+  show(v, est);
+});
+
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+</script>
+</body>
+</html>
