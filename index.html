@@ -160,6 +160,9 @@ const LUXURY = ["acura","audi","bmw","cadillac","genesis","infiniti","land rover
 const REPAIRS = {
   "Front brake pads replacement":[60,150,1.0,1.5],
   "Rear brake pads replacement":[55,140,1.0,1.5],
+  "Front & rear brake pads replacement":[115,290,1.8,2.8],
+  "Rear brake pads & rotors replacement":[140,330,1.5,2.5],
+  "Front & rear brake pads & rotors replacement":[290,680,3.0,4.5],
   "Front brake pads & rotors replacement":[150,350,1.5,2.5],
   "Oil change (synthetic)":[45,80,0.3,0.5],
   "Battery replacement":[150,280,0.3,0.6],
@@ -211,17 +214,42 @@ try{
 let sample = null;
 (async()=>{ try{ if(window.claude) sample = await claude.use("sample"); }catch(e){ sample=null; } })();
 
+// Match free text to the best repair in the list (word overlap), so
+// "front and rear brake pads" picks the combined job, not just "rear".
+const STOP = new Set(["and","the","a","an","of","for","to","replacement","replace","replaced","new","job","service","both","my","on","with"]);
+const SYN = {back:"rear",pad:"pads",rotor:"rotors",plug:"plugs",strut:"struts",belt:"belt",tires:"tire",bearings:"bearing",a:"a"};
+function words(s){
+  return s.toLowerCase().replace(/&/g," ").replace(/\ba\/c\b/g,"ac").split(/[^a-z0-9]+/)
+    .filter(w=>w && !STOP.has(w)).map(w=>SYN[w]||w);
+}
+function bestRepair(text){
+  const t = new Set(words(text));
+  if(!t.size) return null;
+  let best=null, bestScore=0;
+  for(const k of Object.keys(REPAIRS)){
+    const kw = words(k);
+    const hit = kw.filter(w=>t.has(w)).length;
+    const miss = kw.length - hit;
+    const score = hit - 0.75*miss;
+    if(hit>0 && score>bestScore){ best=k; bestScore=score; }
+  }
+  return best;
+}
 function builtInEstimate(v){
-  const key = Object.keys(REPAIRS).find(k=>k.toLowerCase()===v.repair.toLowerCase())
-           || Object.keys(REPAIRS).find(k=>k.toLowerCase().includes(v.repair.toLowerCase()) || v.repair.toLowerCase().includes(k.toLowerCase().split(" replacement")[0]));
-  if(!key) return null;
-  const [pL,pH,hL,hH] = REPAIRS[key];
+  // Several repairs can be listed with commas, "+" or ";" and are added together
+  const parts = v.repair.split(/\s*(?:,|\+|;)\s*/).filter(Boolean);
+  const keys = [];
+  for(const p of parts){ const k = bestRepair(p); if(!k) return null; if(!keys.includes(k)) keys.push(k); }
+  if(!keys.length) return null;
   const [rL,rH] = LABOR[v.zip[0]] || [100,160];
   let mult = LUXURY.includes(v.make.trim().toLowerCase()) ? 1.35 : 1;
   const age = new Date().getFullYear() - Number(v.year);
   if(age > 15) mult *= 0.95;
+  let pL=0,pH=0,hL=0,hH=0;
+  keys.forEach(k=>{ const r=REPAIRS[k]; pL+=r[0]; pH+=r[1]; hL+=r[2]; hH+=r[3]; });
+  hL=Math.round(hL*10)/10; hH=Math.round(hH*10)/10;
   const partsLow=pL*mult, partsHigh=pH*mult, laborLow=hL*rL, laborHigh=hH*rH;
-  return { repair:key, low:partsLow+laborLow, high:partsHigh+laborHigh,
+  return { repair:keys.join(" + "), low:partsLow+laborLow, high:partsHigh+laborHigh,
     partsLow, partsHigh, laborLow, laborHigh, laborHoursLow:hL, laborHoursHigh:hH,
     note:"Built-in estimate from typical national parts prices and regional shop labor rates. Taxes and fees not included.",
     source:"Built-in estimate" };
@@ -366,7 +394,7 @@ $("f").addEventListener("submit", async ev=>{
   }
   if(!est) est = builtInEstimate(v);
   btn.disabled = false; btn.textContent = "Get estimate";
-  if(!est){ $("err").textContent = "That repair isn't in the built-in list. Pick one from the suggestions."; return; }
+  if(!est){ $("err").textContent = "That repair isn't in the built-in list. Pick one from the suggestions, or list several separated by commas."; return; }
   show(v, est);
 });
 
